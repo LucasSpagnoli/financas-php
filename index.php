@@ -18,44 +18,42 @@ function formatacao($numb)
     return number_format($numb, 2, ',', '.');
 };
 
-if (!isset($_SESSION['saldo'])) {
-    $_SESSION['saldo'] = [
-        'entradas' => 0,
-        'saidas' => 0,
-        'total' => 0
-    ];
-}
-
 if (!isset($_SESSION['transacoes'])) {
     $_SESSION['transacoes'] = [];
 }
 
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $descricao = filter_input(INPUT_POST, 'descricao', FILTER_SANITIZE_SPECIAL_CHARS);
-    $valor = filter_input(INPUT_POST, 'valor', FILTER_SANITIZE_SPECIAL_CHARS);
-    $data = filter_input(INPUT_POST, 'data', FILTER_SANITIZE_SPECIAL_CHARS);
-    $categoria = $_POST['categoria'];
-    $tipo = $_POST['tipo'];
-
-    $transacao = [
-        'descricao' => $descricao,
-        'valor' => (($tipo === 'gasto') && ($valor > 0)) ? ($valor * -1) : ($valor), // Chama a função que formata o número pra 1000 virar 1.000,00, com if ternário que corrije caso algum gasto esteja positivo
-        'data' => $data,
-        'categoria' => $categoria,
-        'tipo' => $tipo
-    ];
-
-    if ($transacao['tipo'] === 'gasto') {
-        $_SESSION['saldo']['saidas'] += $transacao['valor'];
+$entradas = 0;
+$saidas = 0;
+foreach ($_SESSION['transacoes'] as $transacao) {
+    if ($transacao['tipo'] === 'ganho') {
+        $entradas += $transacao['valor'];
     } else {
-        $_SESSION['saldo']['entradas'] += $transacao['valor'];
+        $saidas += $transacao['valor'];
+    };
+};
+$total = $entradas + $saidas;
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+
+    if ($_POST['acao'] === 'adicionar') {
+        $descricao = filter_input(INPUT_POST, 'descricao', FILTER_SANITIZE_SPECIAL_CHARS);
+        $valor = filter_input(INPUT_POST, 'valor', FILTER_VALIDATE_FLOAT);
+        $data = filter_input(INPUT_POST, 'data', FILTER_SANITIZE_SPECIAL_CHARS);
+        $categoria = $_POST['categoria'];
+        $tipo = $_POST['tipo'];
+
+        $transacao = [
+            'descricao' => $descricao,
+            'valor' => (($tipo === 'gasto') && ($valor > 0)) ? ($valor * -1) : ($valor), // Chama a função que formata o número pra 1000 virar 1.000,00, com if ternário que corrije caso algum gasto esteja positivo
+            'data' => $data,
+            'categoria' => $categoria,
+            'tipo' => $tipo
+        ];
+
+        $_SESSION['transacoes'][] = $transacao;
+    } else {
+        $_SESSION['transacoes'] = [];
     }
-
-    $_SESSION['saldo']['total'] = $_SESSION['saldo']['saidas'] + $_SESSION['saldo']['entradas'];
-
-
-    $_SESSION['transacoes'][] = $transacao;
-
     // Serve pra não reenviar os dados ao recarregar a página:
     header("Location: " . $_SERVER['PHP_SELF']);
     exit();
@@ -113,7 +111,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-custom">Adicionar</button>
+                <button type="submit" name="acao" value="adicionar" class="btn btn-custom">Adicionar</button>
+                <button type="submit" formnovalidate name="acao" value="limpar" class="btn btn-danger">Limpar</button>
             </form>
         </div>
 
@@ -131,18 +130,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 </thead>
 
                 <tbody>
-                    <tr>
-                        <td>Supermercado</td>
-                        <td>- R$ 120,50</td>
-                        <td>Alimentação</td>
-                        <td>2025-09-12</td>
-                    </tr>
-                    <tr>
-                        <td>Salário</td>
-                        <td>+ R$ 3.500,00</td>
-                        <td>Outros</td>
-                        <td>2025-09-05</td>
-                    </tr>
 
                     <?php
                     if ($_SESSION['transacoes']) {
@@ -151,9 +138,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             echo '<td>' . $transacao['descricao'] . '</td>';
                             echo '<td> R$ ' . formatacao($transacao['valor']) . '</td>';
                             echo '<td>' . $transacao['categoria'] . '</td>';
-                            echo '<td>' . $transacao['data'] . '</td>';
+                            echo '<td>' . date('d/m/Y', strtotime($transacao['data'])) . '</td>';
                             echo '</tr>';
                         endforeach;
+                    } else {
+                        echo '<tr>';
+                        echo '<td> Nada registrado ainda. </td>';
+                        echo '</tr>';
                     }
                     ?>
                 </tbody>
@@ -168,21 +159,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="col-md-4">
                     <div class="alert alert-success text-center">
                         <h5>Entradas</h5>
-                        <p><strong><?php echo 'R$' . formatacao($_SESSION['saldo']['entradas'])?></strong></p>
+                        <p><strong><?php echo 'R$' . formatacao($entradas) ?></strong></p>
                     </div>
                 </div>
 
                 <div class="col-md-4">
                     <div class="alert alert-danger text-center">
                         <h5>Saídas</h5>
-                        <p><strong><?php echo 'R$' . formatacao($_SESSION['saldo']['saidas']) ?></strong></p>
+                        <p><strong><?php echo 'R$' . formatacao($saidas) ?></strong></p>
                     </div>
                 </div>
 
                 <div class="col-md-4">
                     <div class="alert alert-info text-center">
                         <h5>Saldo</h5>
-                        <p><strong><?php echo 'R$' . formatacao($_SESSION['saldo']['total']) ?></strong></p>
+                        <p><strong><?php echo 'R$' . formatacao($total) ?></strong></p>
                     </div>
                 </div>
             </div>
